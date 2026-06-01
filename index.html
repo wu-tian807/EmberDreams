@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MC Sleep Anim</title>
-  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Cinzel:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -33,10 +33,15 @@
   </div>
 
   <!-- 工作台悬浮标牌 + 抽屉面板 -->
-  <img id="wb-title" src="ui/title.png" alt="">
-  <div id="wb-panel">
+  <div id="wb-title" data-wb-ui>
+    <img id="wb-title-img" src="ui/title.png" alt="">
+    <div id="mp-song-label"></div>
+  </div>
+  <div id="wb-panel" data-wb-ui>
     <div id="wb-panel-inner">
       <img src="ui/body_final_cut.png" id="wb-body-img" alt="">
+      <!-- 音乐菜单叠加层，随 body 一起滑入/滑出 -->
+      <div id="wb-menu"></div>
     </div>
   </div>
 
@@ -46,12 +51,15 @@
 
   <!-- load order matters: shared state first, then modules -->
   <script src="js/shared.js"></script>
+  <script src="music-manifest.js"></script>
   <script src="js/video.js"></script>
   <script src="js/audio-crackle.js"></script>
   <script src="js/bubble.js"></script>
   <script src="js/furnace-effects.js"></script>
   <script src="js/particles.js"></script>
   <script src="js/lighting.js"></script>
+  <script src="js/music-player.js"></script>
+  <script src="js/slot-editor.js"></script>
   <script src="js/main.js"></script>
 
 </body>

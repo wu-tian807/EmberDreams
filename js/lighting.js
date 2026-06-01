@@ -121,8 +121,21 @@
         return; // 拖动时不做 hover 检测
       }
 
-      _wbHovered = isInWorkbench(mouseX, mouseY);
-      document.body.style.cursor = _wbHovered ? 'pointer' : 'crosshair';
+      // title 优先：用 getBoundingClientRect 直接判断，不依赖 pointer-events
+      const _titleEl = document.getElementById('wb-title');
+      const _titleR  = _titleEl ? _titleEl.getBoundingClientRect() : null;
+      const overTitle = !_wbExpanded && !_wbClosing && !!_titleR &&
+        mouseX >= _titleR.left && mouseX <= _titleR.right &&
+        mouseY >= _titleR.top  && mouseY <= _titleR.bottom;
+
+      if (overTitle) {
+        _titleHovered = true;
+        _wbHovered    = false;
+      } else {
+        _titleHovered = false;
+        _wbHovered    = isInWorkbench(mouseX, mouseY);
+      }
+      document.body.style.cursor = (_wbHovered || overTitle) ? 'pointer' : 'crosshair';
     });
 
     window.addEventListener('mousedown', (e) => {
@@ -148,4 +161,34 @@
       _wbDragIdx = -1;
       document.body.style.cursor = 'crosshair';
     });
+
+    // ─── title 光照影响（每帧调用）──────────────────────────────────────
+    function updateTitleLight() {
+      const imgEl = document.getElementById('wb-title-img');
+      if (!imgEl) return;
+
+      // 展开态不加，由 wb-open 动画自己管
+      if (_wbExpanded) { imgEl.style.filter = ''; return; }
+
+      const t = performance.now() / 1000;
+      // 与 drawDarkness 相同的闪烁公式
+      const flicker =
+        Math.sin(t * 1.8) * 0.40 +
+        Math.sin(t * 4.3) * 0.30 +
+        Math.sin(t * 0.7) * 0.20 +
+        Math.sin(t * 7.1) * 0.10;
+
+      // furnaceLevel 0→暗, 50→正常, 100→亮
+      const norm   = furnaceLevel / 100;          // 0~1
+      const base   = 0.60 + 0.45 * norm;          // 0.60 ~ 1.05
+      const furnMult = Math.exp(2.4 * (norm - 0.5)); // 0→0.30, 50→1.0, 100→3.3
+      const flickerAmt = flicker * 0.07 * Math.min(furnMult, 1.5);
+      const brightness = Math.max(0.30, Math.min(1.15, base + flickerAmt));
+
+      // 火力高时加一点暖色调
+      const sepia = Math.max(0, (norm - 0.4) * 0.18);
+
+      imgEl.style.filter = `brightness(${brightness.toFixed(3)}) sepia(${sepia.toFixed(3)})`;
+    }
+    window.updateTitleLight = updateTitleLight;
 

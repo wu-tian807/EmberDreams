@@ -28,14 +28,50 @@ var DEBUG_LINE = false;
 
 // workbench hover state (written by lighting.js mousemove, read by main.js)
 var _wbHovered = false;
+// title hover state（鼠标在 title 上时 true，与 _wbHovered 互斥）
+var _titleHovered = false;
 // workbench expanded state (true = title 居中展开)
 var _wbExpanded = false;
 // workbench closing state (true = 正在播放收起动画)
 var _wbClosing  = false;
 // workbench phase2 (true = title 已上移 + panel 已展开)
 var _wbPhase2   = false;
-// panel 尺寸缓存（由 Phase2 初始化，animateFlame 每帧读取）
+// panel 尺寸缓存（由 layoutWbPanel 每帧更新）
 var _panelW = 0, _panelH = 0, _panelL = 0;
+// body_final_cut.png 宽高比
+var WB_BODY_ASPECT = 785 / 1283;
+// 展开态 title 宽度（vw）
+var WB_TITLE_EXPAND_VW = 22;
+// 宽屏时 body 相对 title 的宽度比（用于允许填满高度）
+var WB_PANEL_TITLE_W_RATIO = 1.17;
+// 窄屏 / F12：body 宽度 = title 实际宽度 × 此值（1.0 = 与 title 等宽）
+var WB_PANEL_TITLE_W_RATIO_NARROW = 1.0;
+// innerWidth 低于此值走窄屏逻辑
+var WB_NARROW_BREAKPOINT = 1700;
+
+// ── body 菜单栏位布局（相对 body_final_cut.png，0~1）────────────────
+var WB_SLOT_COUNT = 9;
+// 第 5~9 栏（索引 4~8）整体上移量，相对 body 高度
+var WB_SLOT_LOWER_U    = 0.006;
+var WB_SLOT_LOWER_FROM = 4;
+// 用户标定的两个参考栏位；其余 8 个由 mpGetSlotRect() 线性推导
+var WB_SLOT_REF = [
+  { l: 0.0575, t: 0.0323, w: 0.8859, h: 0.0821 },
+  { l: 0.0575, t: 0.1364, w: 0.8885, h: 0.0868 },
+];
+
+// ── 返回按钮位置（相对 body_final_cut.png，0~1）────────────────────
+// 调好后关掉 DEBUG_BACK_BTN 即可正式化
+var DEBUG_BACK_BTN = false;
+var WB_BACK_BTN = { l: 0.8120, t: 0.3571, w: 0.1224, h: 0.4969 };
+
+// ── 栏位拖拽编辑器（调好后设 DEBUG_SLOT_DRAG=false）────────────────
+var DEBUG_SLOT_DRAG = false;
+var _wbSlotEditBoxes = [
+  { l: 0.0575, t: 0.0323, w: 0.8859, h: 0.0821 },
+  { l: 0.0575, t: 0.1364, w: 0.8885, h: 0.0868 },
+];
+var _slotDrag = { idx: -1, mode: '', sx: 0, sy: 0, box: null };
 
 // ── 工作台角点拖拽编辑器 ──────────────────────────────────────────────
 // 设为 true 开启拖拽调整；调好后设回 false 并将坐标填入 _wbFreeCorners

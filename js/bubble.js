@@ -50,16 +50,28 @@
         return;   // 首次点击仅解除静音，不触发翻身
       }
 
+      // ── title 悬浮图点击：暂停 / 继续（不展开面板）────────────────
+      const titleEl = document.getElementById('wb-title');
+      // wrapper 是 div，点击可能命中内部 img，用 closest 统一处理
+      const onTitle = !!(titleEl && e.target.closest('#wb-title') === titleEl);
+      if (onTitle && !_wbExpanded && !_wbClosing) {
+        if (typeof mpTogglePause === 'function') mpTogglePause();
+        return;
+      }
+
       // ── 工作台展开状态：点击空白触发收起动画 ───────────────────────
+      // data-wb-ui 标记的元素（title / panel 及其所有子元素）点击均不收起
       if (_wbExpanded || _wbClosing) {
-        if (!isInWorkbench(e.clientX, e.clientY) && !_wbClosing) {
-          _wbClosing = true;   // 触发收起动画，main.js 负责后续
+        const onUI = !!e.target.closest('[data-wb-ui]');
+        if (!isInWorkbench(e.clientX, e.clientY) && !onUI && !_wbClosing) {
+          _wbClosing = true;
         }
-        return;   // 展开/收起期间屏蔽其他交互
+        return;
       }
 
       // ── 工作台点击检测（优先级最高）────────────────────────────────
-      if (isInWorkbench(e.clientX, e.clientY)) {
+      // 直接命中 title 元素时不展开（已在上面处理）
+      if (isInWorkbench(e.clientX, e.clientY) && !onTitle) {
         onWorkbenchClick(e);
         return;
       }

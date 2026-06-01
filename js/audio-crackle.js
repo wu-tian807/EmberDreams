@@ -88,7 +88,7 @@
       if (_crackleRunning || !userUnmuted) return;
       _audioCtx.resume().then(() => {
         _crackleRunning = true;
-        _masterGain.gain.setValueAtTime(_crackleVolume(), _audioCtx.currentTime);
+        _masterGain.gain.setValueAtTime(_crackleVolume() * _crackleDuck, _audioCtx.currentTime);
         if (_crackleBuffers.length > 0) {
           _scheduleClip(_audioCtx.currentTime);
         } else {
@@ -106,10 +106,21 @@
     }
 
     function _setCrackleVol() {
-      const vol = _crackleVolume();
+      const vol = _crackleVolume() * _crackleDuck;
       _masterGain.gain.cancelScheduledValues(_audioCtx.currentTime);
       _masterGain.gain.linearRampToValueAtTime(vol, _audioCtx.currentTime + 0.15);
       if (vol <= 0 && _crackleRunning) _stopCrackle();
       else if (vol > 0 && !_crackleRunning && userUnmuted) _startCrackle();
     }
+
+    // 音乐播放时压低炉声，duck=1.0 正常，duck=0.1 压到10%
+    var _crackleDuck = 1.0;
+    window.setCrackleDuck = function(duck, durationSec) {
+      _crackleDuck = duck;
+      const t = _audioCtx.currentTime;
+      const d = durationSec || 1.5;
+      const target = _crackleVolume() * duck;
+      _masterGain.gain.cancelScheduledValues(t);
+      _masterGain.gain.linearRampToValueAtTime(target, t + d);
+    };
 

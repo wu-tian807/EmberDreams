@@ -24,25 +24,42 @@
     let WB_SHEAR = -0.038;  // 旋转后叠加的平行四边形偏移量，可调
     const DEBUG_WB = false;
 
-    // 凸多边形命中检测（使用自由角点 _wbFreeCorners，支持任意四边形）
-    function isInWorkbench(px, py) {
-      if (!_wbFreeCorners) return false;
-      const r = getVideoRect(); if (!r) return false;
-      // 把视频相对坐标转成屏幕坐标
-      const sc = _wbFreeCorners.map(([vx, vy]) => [
-        r.left + vx * r.width,
-        r.top  + vy * r.height,
-      ]);
-      // 叉积符号一致 → 点在凸多边形内（CW/CCW 自适应）
+    // 凸多边形内部检测（叉积符号一致法，CW/CCW 自适应）
+    function _inConvexPoly(pts, px, py) {
       let winding = null;
-      for (let i = 0; i < 4; i++) {
-        const [ax, ay] = sc[i];
-        const [bx, by] = sc[(i + 1) % 4];
+      for (let i = 0; i < pts.length; i++) {
+        const [ax, ay] = pts[i];
+        const [bx, by] = pts[(i + 1) % pts.length];
         const cross = (bx - ax) * (py - ay) - (by - ay) * (px - ax);
         if (winding === null) winding = cross >= 0;
         else if ((cross >= 0) !== winding) return false;
       }
       return true;
+    }
+
+    // 命中检测：顶面（_wbFreeCorners）OR 侧面（由底边向下延伸得到的四边形）
+    function isInWorkbench(px, py) {
+      if (!_wbFreeCorners) return false;
+      const r = getVideoRect(); if (!r) return false;
+
+      // 顶面角点（屏幕坐标）[BL, BR, TR, TL]
+      const sc = _wbFreeCorners.map(([vx, vy]) => [
+        r.left + vx * r.width,
+        r.top  + vy * r.height,
+      ]);
+      const [BL, BR] = sc;
+
+      // 顶面命中
+      if (_inConvexPoly(sc, px, py)) return true;
+
+      // 侧面（正面面板）命中：[BL, BR, SBR, SBL] 四边形
+      const sideHL = r.height * WB_SIDE_H_L;
+      const sideHR = r.height * WB_SIDE_H_R;
+      const ltRad  = WB_LEFT_TILT  * Math.PI / 180;
+      const rtRad  = WB_RIGHT_TILT * Math.PI / 180;
+      const SBL = [BL[0] + Math.sin(ltRad) * sideHL, BL[1] + Math.cos(ltRad) * sideHL];
+      const SBR = [BR[0] + Math.sin(rtRad) * sideHR, BR[1] + Math.cos(rtRad) * sideHR];
+      return _inConvexPoly([BL, BR, SBR, SBL], px, py);
     }
 
     // ─── 双层 ────────────────────────────────────────────────────────

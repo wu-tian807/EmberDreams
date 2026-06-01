@@ -30,6 +30,47 @@
     }
 
     // 主循环
+    // 窄屏跟 title；宽屏可填满高度；超出时等比缩小（不单独按高度反推宽度）
+    function layoutWbPanel(titleEl) {
+      const panel = document.getElementById('wb-panel');
+      if (!panel || !titleEl) return;
+
+      const tRect       = titleEl.getBoundingClientRect();
+      const titleBottom = tRect.bottom;
+      const maxH        = Math.max(0, window.innerHeight * 0.95 - titleBottom);
+      const maxW        = window.innerWidth * 0.96;
+      const isNarrow    = window.innerWidth < WB_NARROW_BREAKPOINT;
+      const ratio       = isNarrow ? WB_PANEL_TITLE_W_RATIO_NARROW : WB_PANEL_TITLE_W_RATIO;
+
+      let panelW = tRect.width * ratio;
+      let panelH = panelW / WB_BODY_ASPECT;
+
+      // 仅宽屏：若填满高度更宽，则放大到 wByFill
+      if (!isNarrow) {
+        const wByFill = maxH * WB_BODY_ASPECT;
+        if (wByFill > panelW) {
+          panelW = Math.min(wByFill, maxW);
+          panelH = panelW / WB_BODY_ASPECT;
+        }
+      }
+
+      // 等比 fit，避免 height 分支把宽度撑大
+      const scale = Math.min(1, maxH / panelH, maxW / panelW);
+      panelW *= scale;
+      panelH *= scale;
+
+      _panelW = panelW;
+      _panelH = panelH;
+      _panelL = (window.innerWidth - _panelW) / 2;
+
+      panel.style.transition = 'none';
+      panel.style.width      = _panelW + 'px';
+      panel.style.height     = _panelH + 'px';
+      panel.style.left       = _panelL + 'px';
+      panel.style.top        = titleBottom + 'px';
+      panel.style.transform  = 'none';
+    }
+
     function animateFlame() {
       // 无论如何都续接下一帧，try/catch 防止单帧错误中断循环
       requestAnimationFrame(animateFlame);
@@ -44,6 +85,7 @@
 
       drawDarkness(mouseX, mouseY, lightLevel);
       drawTorchGlow(mouseX, mouseY);
+      if (typeof updateTitleLight === 'function') updateTitleLight();
 
       // 动态调整粒子池大小（fire 轴联动）
       const targetCount = furnaceLevel === 0 ? 0
@@ -315,44 +357,22 @@
                 'opacity 0.3s, filter 0.3s';
               titleEl.style.left  = '50vw';
               titleEl.style.top   = '50vh';
-              titleEl.style.width = '22vw';
+              titleEl.style.width = WB_TITLE_EXPAND_VW + 'vw';
 
               // Phase 2：Phase 1 结束后，title 上移 + panel 从底边同步上移后抽屉滑出
               titleEl._phase2Timer = setTimeout(() => {
                 if (!_wbExpanded || _wbClosing) return;
                 _wbPhase2 = true;
 
-                // 读取 title 当前真实渲染位置（包含 transform）
-                const tRect       = titleEl.getBoundingClientRect();
-                const targetTopPx = window.innerHeight * 0.17; // title 中心目标 y（px）
-                // title 向上位移量（50vh → 30vh）
-                const yShift = window.innerHeight * 0.50 - targetTopPx;
-
-                // title 上移
+                // title 上移（用 vh，随视口缩放）
                 titleEl.style.transition =
                   'top 0.4s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.3s, filter 0.3s';
-                titleEl.style.top = targetTopPx + 'px';
-
-                // 预计算 panel 尺寸，存入全局供 animateFlame 每帧跟踪用
-                // body_final_cut.png 785×1283
-                const IMG_ASPECT = 785 / 1283;
-                // title 终点视觉底边（style.top=30vh, transform=translate(-50%,-50%)
-                // → 视觉中心=30vh, 视觉底=30vh + titleH/2）
-                // 用 tRect（刚测到的 scale=1 真实高度）计算
-                const titleBottom = targetTopPx + tRect.height / 2;
-                // title 底边到屏幕 95% 处，刚好填满不超出
-                _panelH = window.innerHeight * 0.95 - titleBottom;
-                _panelW = _panelH * IMG_ASPECT;
-                _panelL = (window.innerWidth - _panelW) / 2;
+                titleEl.style.top = '17vh';
 
                 // 等 title 上移完成后触发抽屉弹出
                 const panel = document.getElementById('wb-panel');
                 if (panel) {
-                  panel.style.transition = 'none';
-                  panel.style.width  = _panelW + 'px';
-                  panel.style.height = _panelH + 'px';
-                  panel.style.left   = _panelL + 'px';
-                  // top 由 animateFlame 每帧实时读取 title 底边来设置
+                  layoutWbPanel(titleEl);
                   setTimeout(() => {
                     if (!_wbExpanded || _wbClosing) return;
                     panel.classList.add('open');
@@ -363,13 +383,14 @@
             titleEl.classList.add('expanded');
             titleEl.classList.remove('closing', 'hovered');
 
-            // 每帧把 panel top 贴到 title 实际底边（Phase2 开始后）
-            if (_wbPhase2 && _panelH > 0) {
-              const panel = document.getElementById('wb-panel');
-              if (panel) {
-                const tB = titleEl.getBoundingClientRect().bottom;
-                panel.style.top = tB + 'px';
-              }
+            // 每帧同步 panel 与 title（Phase2 开始后，含 F12 缩放）
+            if (_wbPhase2) {
+              titleEl.style.width = WB_TITLE_EXPAND_VW + 'vw';
+              titleEl.style.left  = '50vw';
+              layoutWbPanel(titleEl);
+              if (typeof slotEditRefresh  === 'function') slotEditRefresh();
+              if (typeof mpUpdateBackBtn  === 'function') mpUpdateBackBtn();
+              if (typeof mpUpdateSongLabel === 'function') mpUpdateSongLabel();
             }
 
           } else if (_wbClosing) {
@@ -383,24 +404,26 @@
               const panel = document.getElementById('wb-panel');
               if (panel) panel.classList.remove('open');
 
-              // title 回到 50vh 中心（如果 phase2 已经上移到 30vh）
+              // title 回到 50vh 中心（如果 phase2 已经上移到 17vh）
               if (_wbPhase2) {
                 titleEl.style.transition =
-                  'top 0.25s cubic-bezier(0.55,0,1,0.45), opacity 0.2s, filter 0.2s';
+                  'top 0.55s cubic-bezier(0.4,0,0.6,1), opacity 0.4s, filter 0.4s';
                 titleEl.style.top = '50vh';
               }
               _wbPhase2 = false;
               _panelH = 0; // 停止 animateFlame 的每帧跟踪
+              if (typeof mpUpdateBackBtn  === 'function') mpUpdateBackBtn();
+              if (typeof mpUpdateSongLabel === 'function') mpUpdateSongLabel();
 
-              // 短暂等待后播 wb-close 动画
+              // 等 panel + title 回中心后，再播 wb-close 飘回动画
               setTimeout(() => {
                 titleEl.classList.remove('expanded');
                 titleEl.classList.add('closing');
                 titleEl.style.transition =
-                  'left 0.45s cubic-bezier(0.55,0,1,0.45),' +
-                  'top  0.45s cubic-bezier(0.55,0,1,0.45),' +
-                  'width 0.45s cubic-bezier(0.55,0,1,0.45),' +
-                  'opacity 0.35s, filter 0.35s';
+                  'left 0.85s cubic-bezier(0.4,0,0.6,1),' +
+                  'top  0.85s cubic-bezier(0.4,0,0.6,1),' +
+                  'width 0.75s cubic-bezier(0.4,0,0.6,1),' +
+                  'opacity 0.6s, filter 0.6s';
                 titleEl.style.left  = wbLeft;
                 titleEl.style.top   = wbTop;
                 titleEl.style.width = titleW + 'px';
@@ -410,9 +433,11 @@
                   if (titleEl) {
                     titleEl.classList.remove('closing');
                     titleEl._wbCloseApplied = false;
+                    // 恢复基础 transition，让 opacity/filter 由 class 接管
+                    titleEl.style.transition = 'opacity 0.3s, filter 0.3s';
                   }
-                }, 500);
-              }, 270); // 等 panel 缩回（panel transition 0.42s，等一半即可）
+                }, 870); // 和 wb-close animation（850ms）对齐，20ms 缓冲
+              }, 480); // 等 panel 缩回（panel-inner transition 0.7s，约等一半）
             }
 
           } else {
@@ -425,7 +450,9 @@
             titleEl.style.height = 'auto';
             titleEl.style.left   = wbLeft;
             titleEl.style.top    = wbTop;
-            titleEl.classList.toggle('hovered', _wbHovered);
+            titleEl.classList.toggle('hovered', _titleHovered);
+            if (typeof mpUpdateBackBtn  === 'function') mpUpdateBackBtn();
+            if (typeof mpUpdateSongLabel === 'function') mpUpdateSongLabel();
           }
         }
       }
