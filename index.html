@@ -1,0 +1,58 @@
+﻿<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MC Sleep Anim</title>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div id="layerA" class="layer"><video id="videoA" playsinline muted></video></div>
+  <div id="layerB" class="layer"><video id="videoB" playsinline muted></video></div>
+
+  <canvas id="darkness-canvas"></canvas>
+  <canvas id="flame-canvas"></canvas>
+
+  <!-- 火力调节滑条 -->
+  <div id="light-slider-ui">
+    <div class="slider-row">
+      <span class="row-label">fire</span>
+      <span>🪨</span>
+      <input id="furnace-slider" type="range" min="0" max="100" value="50" step="1">
+      <span>🔥</span>
+      <span id="furnace-val">50</span>
+    </div>
+  </div>
+
+  <!-- 睡梦气泡 -->
+  <div id="speech-bubble">
+    <img src="dialogue_noBG.png" alt="">
+    <span id="bubble-text"></span>
+  </div>
+
+  <!-- 工作台悬浮标牌 + 抽屉面板 -->
+  <img id="wb-title" src="ui/title.png" alt="">
+  <div id="wb-panel">
+    <div id="wb-panel-inner">
+      <img src="ui/body_final_cut.png" id="wb-body-img" alt="">
+    </div>
+  </div>
+
+  <div id="unmute-tip">CLICK TO UNMUTE</div>
+  <div id="hud"></div>
+  <button id="turn-btn">turn()</button>
+
+  <!-- load order matters: shared state first, then modules -->
+  <script src="js/shared.js"></script>
+  <script src="js/video.js"></script>
+  <script src="js/audio-crackle.js"></script>
+  <script src="js/bubble.js"></script>
+  <script src="js/furnace-effects.js"></script>
+  <script src="js/particles.js"></script>
+  <script src="js/lighting.js"></script>
+  <script src="js/main.js"></script>
+
+</body>
+</html>

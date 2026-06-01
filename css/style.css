@@ -1,0 +1,249 @@
+﻿    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Courier New', monospace; cursor: crosshair; }
+
+    .layer {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .layer video { max-width: 100%; max-height: 100vh; display: block; }
+    #layerB { opacity: 0; }
+
+    /* 粒子 canvas：覆盖全屏，pointer-events 不阻挡交互 */
+    #flame-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9999;  /* 永远在视频层之上 */
+    }
+
+    #hud {
+      position: fixed; bottom: 18px; right: 18px;
+      color: rgba(255,255,255,0.28); font-size: 11px; line-height: 1.7;
+      text-align: right; user-select: none; pointer-events: none;
+      letter-spacing: 0.03em; z-index: 10;
+    }
+    #unmute-tip {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      color: rgba(255,255,255,0.55); font-size: 13px; letter-spacing: 0.08em;
+      pointer-events: none; transition: opacity 0.6s; z-index: 10;
+    }
+    #unmute-tip.hidden { opacity: 0; }
+    #turn-btn {
+      position: fixed; bottom: 18px; left: 18px;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.4); font-family: inherit; font-size: 11px;
+      padding: 5px 12px; cursor: pointer; border-radius: 4px;
+      transition: background .2s, color .2s; letter-spacing: 0.05em; z-index: 10;
+    }
+    #turn-btn:hover    { background: rgba(255,255,255,0.14); color: rgba(255,255,255,0.8); }
+    #turn-btn:disabled { opacity: 0.3; cursor: default; }
+
+    /* ── 暗/亮遮罩 canvas ── */
+    #darkness-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 200;
+    }
+
+    /* ── 光照调试滑条 ── */
+    #light-slider-ui {
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10001;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: rgba(0,0,0,0.45);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 6px;
+      padding: 8px 12px;
+      user-select: none;
+    }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #light-slider-ui span {
+      color: rgba(255,255,255,0.45);
+      font-size: 11px;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 0.04em;
+      min-width: 28px;
+      text-align: center;
+    }
+    #light-slider-ui .row-label {
+      color: rgba(255,255,255,0.25);
+      font-size: 10px;
+      font-family: 'Courier New', monospace;
+      min-width: 28px;
+      text-align: right;
+      letter-spacing: 0.03em;
+    }
+    #furnace-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 160px;
+      height: 3px;
+      border-radius: 2px;
+      background: linear-gradient(to right, #1a0a00, #a03000, #ff8c00, #ffe040);
+      outline: none;
+      cursor: pointer;
+    }
+    #furnace-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 13px; height: 13px;
+      border-radius: 50%;
+      background: rgba(255,140,20,0.95);
+      border: 1px solid rgba(255,200,80,0.5);
+      box-shadow: 0 0 8px rgba(255,100,0,0.7);
+      cursor: pointer;
+    }
+    #furnace-slider::-moz-range-thumb {
+      width: 13px; height: 13px;
+      border-radius: 50%;
+      background: rgba(255,140,20,0.95);
+      border: 1px solid rgba(255,200,80,0.5);
+      cursor: pointer;
+    }
+
+    /* ── 工作台悬浮标牌 ── */
+    @keyframes wb-bob {
+      0%, 100% { transform: translate(-50%, -100%) translateY(0px)  rotate(-30deg); }
+      50%       { transform: translate(-50%, -100%) translateY(-7px) rotate(-30deg); }
+    }
+    /* 展开动画：transform + 透明度 + 光效 同步渐变 */
+    @keyframes wb-open {
+      from {
+        transform: translate(-50%, -100%) rotate(-30deg) scale(0.5);
+        opacity: 0.38;
+        filter: brightness(0.55) saturate(0.6) drop-shadow(0 1px 4px rgba(0,0,0,0.5));
+      }
+      to {
+        transform: translate(-50%, -50%)  rotate(0deg)   scale(1);
+        opacity: 1;
+        filter: drop-shadow(0 0 18px rgba(255, 200, 60, 0.45));
+      }
+    }
+    /* 收起动画：从居中还原到工作台姿态，光效同步淡出 */
+    @keyframes wb-close {
+      from {
+        transform: translate(-50%, -50%)  rotate(0deg)   scale(1);
+        opacity: 1;
+        filter: drop-shadow(0 0 18px rgba(255, 200, 60, 0.45));
+      }
+      to {
+        transform: translate(-50%, -100%) rotate(-30deg) scale(0.5);
+        opacity: 0.38;
+        filter: brightness(0.55) saturate(0.6) drop-shadow(0 1px 4px rgba(0,0,0,0.5));
+      }
+    }
+    #wb-title {
+      position: fixed;
+      pointer-events: none;
+      user-select: none;
+      z-index: 10002;
+      opacity: 0.38;
+      transform-origin: center center;
+      animation: wb-bob 2.8s ease-in-out infinite;
+      transition: opacity 0.3s, filter 0.3s;
+      filter: brightness(0.55) saturate(0.6) drop-shadow(0 1px 4px rgba(0,0,0,0.5));
+    }
+    #wb-title.hovered {
+      opacity: 1;
+      filter: brightness(1.25) drop-shadow(0 0 12px rgba(255, 200, 60, 0.75));
+    }
+    /* 展开态：停止 bob，播放展开动画（opacity/filter 由 keyframes 控制） */
+    #wb-title.expanded {
+      animation: wb-open 0.55s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+      pointer-events: auto;
+      cursor: default;
+    }
+    /* 收起态：播放收起动画（opacity/filter 由 keyframes 控制） */
+    #wb-title.closing {
+      animation: wb-close 0.45s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+      pointer-events: none;
+    }
+
+    /* ── 工作台抽屉面板 ── */
+    #wb-panel {
+      position: fixed;
+      z-index: 10001;           /* title(10002) 之下，确保 title 盖住面板顶端 */
+      overflow: hidden;         /* 关键：裁切 inner，实现"不穿模"的抽屉效果 */
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.25s;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #wb-panel.open {
+      pointer-events: auto;
+      opacity: 1;
+    }
+    /* inner 从 -100%（面板顶部以上）滑入，内容不会穿过 title */
+    #wb-panel-inner {
+      width: 100%;
+      height: 100%;
+      transform: translateY(-100%);
+      transition: transform 0.42s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+    #wb-panel.open #wb-panel-inner {
+      transform: translateY(0);
+    }
+    #wb-body-img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      user-select: none;
+      -webkit-user-select: none;
+      pointer-events: none;
+      -webkit-user-drag: none;
+    }
+
+    /* ── 睡梦气泡 ── */
+    #speech-bubble {
+      position: fixed;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+      z-index: 10000;
+      opacity: 0;
+      transform: scale(0.8);
+      transform-origin: center bottom;
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    #speech-bubble.show {
+      opacity: 0.52;
+      transform: scale(1);
+    }
+    #speech-bubble.hide {
+      opacity: 0;
+      transform: scale(0.9);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    #speech-bubble img {
+      width: 100%; height: 100%; display: block;
+    }
+    #bubble-text {
+      position: absolute;
+      top: 42%; left: 46%;
+      transform: translate(-50%, -50%);
+      color: #b8845a;
+      font-family: 'Caveat', 'Courier New', cursive;
+      font-weight: 600;
+      font-style: normal;
+      white-space: nowrap;
+      user-select: none;
+      text-shadow: 0 1px 6px rgba(200,140,80,0.35);
+      letter-spacing: 0.08em;
+    }
