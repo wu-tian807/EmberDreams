@@ -465,8 +465,9 @@
         if (typeof showFireBlindBubble === 'function') {
           showFireBlindBubble(() => {
             if (state === 'sleepLeft') turn();
-            // 彩蛋冷却：翻身结束后（约 15s）才允许再次触发
-            setTimeout(() => { animateFlame._fireBlindBusy = false; }, 15000);
+            // 彩蛋冷却：翻身结束后随机 15~45s 才允许再次触发
+            const cooldown = (15 + Math.random() * 30) * 1000;
+            setTimeout(() => { animateFlame._fireBlindBusy = false; }, cooldown);
           });
         }
       }
