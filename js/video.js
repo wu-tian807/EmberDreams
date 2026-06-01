@@ -1,10 +1,10 @@
 ﻿// video.js — video layer crossfade, state machine, turn logic, unmute, HUD, rect cache
 
     const VIDEOS = {
-      rightSleep : 'rightSleep.mov',
-      leftSleep  : 'leftSleep.mov',
-      turnLeft   : 'turnleft_s.mov',
-      turnRight  : 'turnright_s.mov',
+      rightSleep : 'rightSleep.webm',
+      leftSleep  : 'leftSleep.webm',
+      turnLeft   : 'turnleft_s.webm',
+      turnRight  : 'turnright_s.webm',
     };
 
     const CROSSFADE_MS  = 200;     // 过场时长

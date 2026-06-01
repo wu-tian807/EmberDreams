@@ -457,6 +457,25 @@
         }
       }
 
+      // ── 烈焰彩蛋：fire > 80 上升沿 + sleepLeft → 弹台词 + 翻身 ──────
+      const _fireHigh = furnaceLevel > 80;
+      if (_fireHigh && !animateFlame._fireBlindPrev
+          && state === 'sleepLeft' && !animateFlame._fireBlindBusy) {
+        animateFlame._fireBlindBusy = true;
+        if (typeof showFireBlindBubble === 'function') {
+          showFireBlindBubble(() => {
+            if (state === 'sleepLeft') turn();
+            // 彩蛋冷却：翻身结束后（约 15s）才允许再次触发
+            setTimeout(() => { animateFlame._fireBlindBusy = false; }, 15000);
+          });
+        }
+      }
+      // 火力下降到 80 以下时重置上升沿检测
+      if (!_fireHigh) animateFlame._fireBlindPrev = false;
+      else            animateFlame._fireBlindPrev = true;
+
       } catch(e) { console.error('flame:', e); }  // 单帧错误不中断循环
     }
+    animateFlame._fireBlindPrev = false;
+    animateFlame._fireBlindBusy = false;
     animateFlame();

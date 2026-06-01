@@ -28,6 +28,7 @@
       // 字体大小随气泡缩放
       bubbleText.style.fontSize = (size * 0.14) + 'px';
       bubbleText.textContent = BUBBLE_TEXTS[Math.floor(Math.random() * BUBBLE_TEXTS.length)];
+      bubbleText.classList.remove('fire-blind');
 
       // 重置动画
       bubbleEl.classList.remove('hide', 'show');
@@ -40,6 +41,48 @@
         bubbleTimer = setTimeout(() => bubbleEl.classList.remove('hide'), 600);
       }, 1800);
     }
+
+    // ─── 烈焰彩蛋：furnaceLevel > 80 且 sleepLeft 时弹出刺眼台词 ────
+    const FIRE_BLIND_TEXTS = [
+      'Ugh... too bright!',
+      'So bright...!',
+      '...my eyes!',
+      'Ugh, so bright!',
+      'Argh... bright!',
+    ];
+
+    // 显示彩蛋气泡，onDone 在气泡开始消退时（~2s后）调用
+    function showFireBlindBubble(onDone) {
+      const r = getVideoRect();
+      if (!r) return;
+
+      const size = r.width * 0.145;
+      const cx   = r.left + r.width  * HEAD_CX;
+      const cy   = r.top  + r.height * HEAD_CY;
+
+      bubbleEl.style.width  = size + 'px';
+      bubbleEl.style.height = size + 'px';
+      bubbleEl.style.left   = (cx + size * 0.3) + 'px';
+      bubbleEl.style.top    = (cy - size * 1.4) + 'px';
+
+      bubbleText.style.fontSize = (size * 0.115) + 'px';
+      bubbleText.textContent =
+        FIRE_BLIND_TEXTS[Math.floor(Math.random() * FIRE_BLIND_TEXTS.length)];
+      bubbleText.classList.add('fire-blind');
+
+      bubbleEl.classList.remove('hide', 'show');
+      void bubbleEl.offsetHeight;
+      bubbleEl.classList.add('show');
+
+      clearTimeout(bubbleTimer);
+      // 2s 后开始消退，同时触发翻身
+      bubbleTimer = setTimeout(() => {
+        bubbleEl.classList.replace('show', 'hide');
+        if (onDone) onDone();
+        bubbleTimer = setTimeout(() => bubbleEl.classList.remove('hide'), 700);
+      }, 2000);
+    }
+    window.showFireBlindBubble = showFireBlindBubble;
 
     // ─── 头部点击触发 turn（25% 概率）+ 气泡（每次）────────────────
     let firstClick = true;

@@ -566,4 +566,11 @@
       user-select: none;
       text-shadow: 0 1px 6px rgba(200,140,80,0.35);
       letter-spacing: 0.08em;
+      transition: color 0.3s, transform 0.3s, text-shadow 0.3s;
+    }
+    #bubble-text.fire-blind {
+      color: #e86020;
+      transform: translate(-50%, -50%) rotate(-4deg);
+      text-shadow: 0 0 10px rgba(255,120,20,0.7), 0 1px 4px rgba(200,80,0,0.5);
+      letter-spacing: 0.04em;
     }
