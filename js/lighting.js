@@ -1,35 +1,119 @@
 ﻿// lighting.js — darkness overlay, furnace glow, torch glow, fire slider
 
-    // ─── title 像素级点击检测：采样 title-img 对应位置的 alpha 值 ────────
-    // 将图片离屏绘制到缩小的 canvas，鼠标移动时查询对应像素透明度
-    const _TITLE_HIT_SCALE = 0.25;   // 缩到 25% 降低内存，精度仍足够
-    const _TITLE_ALPHA_MIN = 30;     // alpha < 此值视为透明区域（0~255）
-    let   _titleHitCanvas = null, _titleHitCtx = null;
-    let   _titleHitW = 0, _titleHitH = 0;
+    // ─── title 旋转感知命中检测 ───────────────────────────────────────────
+    // 根本原因：wb-bob 动画有旋转，BoundingClientRect 是轴对齐包围盒（比实际元素大）
+    // 修复：从 computedStyle 提取旋转角，计算实际旋转矩形的 4 个顶点，做凸多边形检测
 
-    function _titleAlphaHit(img, rect, mx, my) {
-      if (!img || !img.complete || img.naturalWidth === 0) return true; // 图未加载完，fallback 矩形
-      try {
-        const needW = Math.max(1, Math.round(rect.width  * _TITLE_HIT_SCALE));
-        const needH = Math.max(1, Math.round(rect.height * _TITLE_HIT_SCALE));
-        // rect 变化时重绘（窗口缩放）
-        if (!_titleHitCanvas || _titleHitW !== needW || _titleHitH !== needH) {
-          _titleHitCanvas = document.createElement('canvas');
-          _titleHitW = _titleHitCanvas.width  = needW;
-          _titleHitH = _titleHitCanvas.height = needH;
-          _titleHitCtx = _titleHitCanvas.getContext('2d', { willReadFrequently: true });
-          _titleHitCtx.drawImage(img, 0, 0, needW, needH);
-        }
-        const px = Math.round((mx - rect.left) / rect.width  * (needW - 1));
-        const py = Math.round((my - rect.top)  / rect.height * (needH - 1));
-        const px2 = Math.max(0, Math.min(needW - 1, px));
-        const py2 = Math.max(0, Math.min(needH - 1, py));
-        const alpha = _titleHitCtx.getImageData(px2, py2, 1, 1).data[3];
-        return alpha >= _TITLE_ALPHA_MIN;
-      } catch (e) {
-        return true; // CORS 等异常时 fallback 矩形检测
+    // debug：在全屏 canvas 上画出实际命中多边形（绿框）
+    var DEBUG_TITLE_HIT = false;
+    let _dbgPolyCanvas = null;
+
+    function _titleDebugPolyDraw(pts) {
+      if (!DEBUG_TITLE_HIT) {
+        if (_dbgPolyCanvas) _dbgPolyCanvas.style.display = 'none';
+        return;
+      }
+      if (!_dbgPolyCanvas) {
+        _dbgPolyCanvas = document.createElement('canvas');
+        _dbgPolyCanvas.style.cssText =
+          'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:99999;';
+        document.body.appendChild(_dbgPolyCanvas);
+      }
+      _dbgPolyCanvas.style.display = '';
+      _dbgPolyCanvas.width  = window.innerWidth;
+      _dbgPolyCanvas.height = window.innerHeight;
+      const c = _dbgPolyCanvas.getContext('2d');
+      c.clearRect(0, 0, _dbgPolyCanvas.width, _dbgPolyCanvas.height);
+      c.beginPath();
+      c.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]);
+      c.closePath();
+      c.fillStyle   = 'rgba(0,255,80,0.12)';
+      c.strokeStyle = 'rgba(0,255,80,0.85)';
+      c.lineWidth   = 2;
+      c.fill();
+      c.stroke();
+      // 画 BoundingRect 对比（红框）
+      const el = document.getElementById('wb-title');
+      if (el) {
+        const r = el.getBoundingClientRect();
+        c.strokeStyle = 'rgba(255,60,60,0.6)';
+        c.lineWidth   = 1;
+        c.setLineDash([4, 4]);
+        c.strokeRect(r.left, r.top, r.width, r.height);
+        c.setLineDash([]);
       }
     }
+
+    // 计算旋转矩形 4 顶点（屏幕坐标）并做凸多边形点检测
+    function _titleConvexHit(titleEl, mx, my) {
+      const rect = titleEl.getBoundingClientRect();
+      // 快速外矩形排除
+      if (mx < rect.left || mx > rect.right || my < rect.top || my > rect.bottom) {
+        if (DEBUG_TITLE_HIT) _titleDebugPolyDraw(_titleCorners(titleEl, rect));
+        return false;
+      }
+
+      const pts = _titleCorners(titleEl, rect);
+      if (DEBUG_TITLE_HIT) _titleDebugPolyDraw(pts);
+
+      // 凸多边形检测（与 video.js _inConvexPoly 相同逻辑）
+      let winding = null;
+      for (let i = 0; i < pts.length; i++) {
+        const [ax, ay] = pts[i];
+        const [bx, by] = pts[(i + 1) % pts.length];
+        const cross = (bx - ax) * (my - ay) - (by - ay) * (mx - ax);
+        if (winding === null) winding = cross >= 0;
+        else if ((cross >= 0) !== winding) return false;
+      }
+      return true;
+    }
+
+    // 提取 CSS transform 旋转角，然后用 BoundingRect 反推原始矩形半宽/半高
+    // （比用 offsetWidth/offsetHeight 更可靠，始终与实际渲染匹配）
+    function _titleCorners(titleEl, rect) {
+      const cx = (rect.left + rect.right)  / 2;
+      const cy = (rect.top  + rect.bottom) / 2;
+
+      // 从 computed transform 提取旋转
+      let cosA = 1, sinA = 0;
+      try {
+        const m   = new DOMMatrix(window.getComputedStyle(titleEl).transform);
+        const len = Math.sqrt(m.a * m.a + m.b * m.b);
+        if (len > 0) { cosA = m.a / len; sinA = m.b / len; }
+      } catch (_) {}
+
+      // 用 BBox 和旋转角反推原始矩形半宽 hw、半高 hh：
+      //   bboxW = 2hw * |cosA| + 2hh * |sinA|
+      //   bboxH = 2hw * |sinA| + 2hh * |cosA|
+      // 解线性方程组（cos²A - sin²A = cos(2A) ≠ 0 时有唯一解）
+      const bboxW = rect.width, bboxH = rect.height;
+      const absC  = Math.abs(cosA), absS = Math.abs(sinA);
+      let hw, hh;
+      const det = absC * absC - absS * absS; // cos(2θ)
+      if (Math.abs(det) > 0.01) {
+        hw = (bboxW * absC - bboxH * absS) / (2 * det);
+        hh = (bboxH * absC - bboxW * absS) / (2 * det);
+      } else {
+        // θ ≈ 45°：近似退化，用 offsetWidth/Height 兜底
+        hw = titleEl.offsetWidth  / 2;
+        hh = titleEl.offsetHeight / 2;
+      }
+      // 防止负值（极端退化时）
+      hw = Math.max(hw, 1); hh = Math.max(hh, 1);
+
+      const rot = (lx, ly) => [cx + lx*cosA - ly*sinA, cy + lx*sinA + ly*cosA];
+      return [rot(-hw,-hh), rot(hw,-hh), rot(hw,hh), rot(-hw,hh)];
+    }
+
+    // 每帧刷新 debug 多边形（title 有浮动动画）
+    (function _titleDebugLoop() {
+      if (DEBUG_TITLE_HIT) {
+        const el = document.getElementById('wb-title');
+        if (el) _titleDebugPolyDraw(_titleCorners(el, el.getBoundingClientRect()));
+      }
+      requestAnimationFrame(_titleDebugLoop);
+    })();
 
     // ─── 光照 & 火力 ─────────────────────────────────────────────────
     const darknessCanvas = document.getElementById('darkness-canvas');
@@ -153,15 +237,9 @@
       }
 
       // title 优先：先过矩形，再做像素 alpha 采样，精准排除透明区域
-      const _titleEl  = document.getElementById('wb-title');
-      const _titleImg = document.getElementById('wb-title-img');
-      const _titleR   = _titleEl ? _titleEl.getBoundingClientRect() : null;
-      let overTitle = false;
-      if (!_wbExpanded && !_wbClosing && !!_titleR &&
-          mouseX >= _titleR.left && mouseX <= _titleR.right &&
-          mouseY >= _titleR.top  && mouseY <= _titleR.bottom) {
-        overTitle = _titleAlphaHit(_titleImg, _titleR, mouseX, mouseY);
-      }
+      const _titleEl = document.getElementById('wb-title');
+      const overTitle = !_wbExpanded && !_wbClosing && !!_titleEl
+        && _titleConvexHit(_titleEl, mouseX, mouseY);
 
       if (overTitle) {
         _titleHovered = true;
