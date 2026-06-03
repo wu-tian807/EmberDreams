@@ -1,5 +1,36 @@
 ﻿// lighting.js — darkness overlay, furnace glow, torch glow, fire slider
 
+    // ─── title 像素级点击检测：采样 title-img 对应位置的 alpha 值 ────────
+    // 将图片离屏绘制到缩小的 canvas，鼠标移动时查询对应像素透明度
+    const _TITLE_HIT_SCALE = 0.25;   // 缩到 25% 降低内存，精度仍足够
+    const _TITLE_ALPHA_MIN = 30;     // alpha < 此值视为透明区域（0~255）
+    let   _titleHitCanvas = null, _titleHitCtx = null;
+    let   _titleHitW = 0, _titleHitH = 0;
+
+    function _titleAlphaHit(img, rect, mx, my) {
+      if (!img || !img.complete || img.naturalWidth === 0) return true; // 图未加载完，fallback 矩形
+      try {
+        const needW = Math.max(1, Math.round(rect.width  * _TITLE_HIT_SCALE));
+        const needH = Math.max(1, Math.round(rect.height * _TITLE_HIT_SCALE));
+        // rect 变化时重绘（窗口缩放）
+        if (!_titleHitCanvas || _titleHitW !== needW || _titleHitH !== needH) {
+          _titleHitCanvas = document.createElement('canvas');
+          _titleHitW = _titleHitCanvas.width  = needW;
+          _titleHitH = _titleHitCanvas.height = needH;
+          _titleHitCtx = _titleHitCanvas.getContext('2d', { willReadFrequently: true });
+          _titleHitCtx.drawImage(img, 0, 0, needW, needH);
+        }
+        const px = Math.round((mx - rect.left) / rect.width  * (needW - 1));
+        const py = Math.round((my - rect.top)  / rect.height * (needH - 1));
+        const px2 = Math.max(0, Math.min(needW - 1, px));
+        const py2 = Math.max(0, Math.min(needH - 1, py));
+        const alpha = _titleHitCtx.getImageData(px2, py2, 1, 1).data[3];
+        return alpha >= _TITLE_ALPHA_MIN;
+      } catch (e) {
+        return true; // CORS 等异常时 fallback 矩形检测
+      }
+    }
+
     // ─── 光照 & 火力 ─────────────────────────────────────────────────
     const darknessCanvas = document.getElementById('darkness-canvas');
     const dCtx            = darknessCanvas.getContext('2d');
@@ -121,12 +152,16 @@
         return; // 拖动时不做 hover 检测
       }
 
-      // title 优先：用 getBoundingClientRect 直接判断，不依赖 pointer-events
-      const _titleEl = document.getElementById('wb-title');
-      const _titleR  = _titleEl ? _titleEl.getBoundingClientRect() : null;
-      const overTitle = !_wbExpanded && !_wbClosing && !!_titleR &&
-        mouseX >= _titleR.left && mouseX <= _titleR.right &&
-        mouseY >= _titleR.top  && mouseY <= _titleR.bottom;
+      // title 优先：先过矩形，再做像素 alpha 采样，精准排除透明区域
+      const _titleEl  = document.getElementById('wb-title');
+      const _titleImg = document.getElementById('wb-title-img');
+      const _titleR   = _titleEl ? _titleEl.getBoundingClientRect() : null;
+      let overTitle = false;
+      if (!_wbExpanded && !_wbClosing && !!_titleR &&
+          mouseX >= _titleR.left && mouseX <= _titleR.right &&
+          mouseY >= _titleR.top  && mouseY <= _titleR.bottom) {
+        overTitle = _titleAlphaHit(_titleImg, _titleR, mouseX, mouseY);
+      }
 
       if (overTitle) {
         _titleHovered = true;

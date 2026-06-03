@@ -460,6 +460,7 @@ function mpTogglePause() {
     _mpPaused = false;
     _mpAudio.play().catch(() => {});
     _mpFadeTo(_mpAudio, MP_BGM_VOLUME, 800);
+    if (typeof setCrackleDuck === 'function') setCrackleDuck(0.10, 1.0); // 再次压低炉声
     if (titleEl) {
       titleEl.style.transform = '';
       titleEl.classList.remove('paused');
@@ -471,6 +472,7 @@ function mpTogglePause() {
     _mpFadeTo(_mpAudio, 0, 600);
     const ref = _mpAudio;
     setTimeout(() => { if (_mpPaused) ref.pause(); }, 650);
+    if (typeof setCrackleDuck === 'function') setCrackleDuck(1.0, 0.8); // 恢复炉声
     if (titleEl) {
       const computed = window.getComputedStyle(titleEl).transform;
       titleEl.style.transform = computed === 'none' ? 'translateY(0)' : computed;
