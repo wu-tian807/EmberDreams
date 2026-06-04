@@ -1,10 +1,11 @@
 ﻿// video.js — video layer crossfade, state machine, turn logic, unmute, HUD, rect cache
 
     const VIDEOS = {
-      rightSleep : 'rightSleep.webm',
-      leftSleep  : 'leftSleep.webm',
-      turnLeft   : 'turnleft_s.webm',
-      turnRight  : 'turnright_s.webm',
+      rightSleep    : 'rightSleep.webm',
+      leftSleep     : 'leftSleep.webm',
+      turnLeft      : 'turnleft_s.webm',
+      turnRight     : 'turnright_s.webm',
+      turnRightQuick: 'turn_right_quick.webm',
     };
 
     const CROSSFADE_MS  = 200;     // 过场时长
@@ -170,6 +171,56 @@
     }
 
     window.turn = turn;
+
+    // ─── 快速翻身（fire-blind 彩蛋用）：立即中断 sleep loop，不等循环结束 ─
+    // 仅支持 sleepLeft → sleepRight（使用 turn_right_quick.webm）
+    function turnQuick() {
+      if (state === 'turning') return;
+      if (state !== 'sleepLeft') { turn(); return; }  // 只有 sleepLeft 有快速版
+      turnBtn.disabled = true;
+
+      state = 'turning';
+      updateHud();
+
+      // 立即停止当前 sleep 循环，切入快速翻身视频
+      front.vid.loop = false;
+      front.vid.pause();
+
+      back.vid.pause();
+      back.vid.muted = true;
+      back.vid.loop  = false;
+      back.vid.src   = VIDEOS.turnRightQuick;
+      back.vid.load();
+
+      // 后台视频准备好第一帧后立即 crossfade
+      back.vid.addEventListener('playing', function onQuickTurnReady() {
+        // 同时开始缓冲下段睡眠循环
+        // (暂不动 back，等翻身结束再换)
+        flipLayers(() => {
+          // 翻身播完，切 rightSleep
+          back.vid.muted = true;
+          back.vid.loop  = true;
+          back.vid.src   = VIDEOS.rightSleep;
+          back.vid.load();
+
+          front.vid.addEventListener('ended', function onQuickTurnEnd() {
+            back.vid.addEventListener('playing', function onSleepReady() {
+              flipLayers(() => {
+                state = 'sleepRight';
+                turnBtn.disabled = false;
+                updateHud();
+              });
+            }, { once: true });
+            back.vid.currentTime = 0;
+            back.vid.play().catch(console.error);
+          }, { once: true });
+        });
+      }, { once: true });
+
+      back.vid.currentTime = 0;
+      back.vid.play().catch(console.error);
+    }
+    window.turnQuick = turnQuick;
 
     // ─── 解除静音（只作用于前台） ────────────────────────────────────
     function unmute() {

@@ -530,21 +530,20 @@
         }
       }
 
-      // ── 烈焰彩蛋：fire > 80 上升沿 + sleepLeft → 弹台词 + 翻身 ──────
-      const _fireHigh = furnaceLevel > 80;
+      // ── 烈焰彩蛋：fuel 加满瞬间到 100 的上升沿 + sleepLeft → 弹台词 + 翻身 ──
+      const _fireHigh = furnaceLevel >= 99;
       if (_fireHigh && !animateFlame._fireBlindPrev
           && state === 'sleepLeft' && !animateFlame._fireBlindBusy) {
         animateFlame._fireBlindBusy = true;
         if (typeof showFireBlindBubble === 'function') {
           showFireBlindBubble(() => {
-            if (state === 'sleepLeft') turn();
-            // 彩蛋冷却：翻身结束后随机 15~45s 才允许再次触发
-            const cooldown = (15 + Math.random() * 30) * 1000;
-            setTimeout(() => { animateFlame._fireBlindBusy = false; }, cooldown);
+            if (state === 'sleepLeft') turnQuick();
+            // 短暂冷却，防止连续加燃料时重复触发
+            setTimeout(() => { animateFlame._fireBlindBusy = false; }, 5000);
           });
         }
       }
-      // 火力下降到 80 以下时重置上升沿检测
+      // furnaceLevel 跌回 100 以下时重置上升沿检测
       if (!_fireHigh) animateFlame._fireBlindPrev = false;
       else            animateFlame._fireBlindPrev = true;
 
