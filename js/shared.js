@@ -150,3 +150,18 @@ var WB_RIGHT_TILT = 40;   // 右线：从竖直向下顺时针 30°
 // left-side extra extension (fraction of video width) — shifts ONLY the two left
 // vertices further left, making the top face a trapezoid without touching the right side
 var WB_LEFT_EXT = 0.0000;
+
+// ── 熔炉燃料 & 烧制状态 ──────────────────────────────────────────────────
+var fuelSeconds      = 0;     // 当前燃料剩余秒数（倒计时，线性衰减）
+var fuelTotalSeconds = 0;     // 当前燃料点燃时的总秒数（用于计算 furnaceLevel）
+var fuelQueue        = [];    // ItemStack[]，排队等待燃烧的燃料
+var smeltProgress    = 0;     // 当前烧制进度（秒，0 → SMELT_DURATION）
+var furnaceUIOpen    = false;
+
+// 槽位：null 表示空，非 null 为 { item: string, count: number }
+var furnaceInputSlot  = { item: 'oak_log', count: 1 };
+var furnaceFuelSlot   = null;
+var furnaceOutputSlot = null;
+
+// 鼠标持有的物品（拖拽中）
+var furnaceHeldItem = null;

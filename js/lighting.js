@@ -132,37 +132,57 @@
     const furnaceSlider = document.getElementById('furnace-slider');
     const furnaceValEl  = document.getElementById('furnace-val');
 
+    // slider 保留做调试用，但正常运行下 fuelSeconds 驱动 furnaceLevel
     furnaceSlider.addEventListener('input', () => {
       furnaceLevel = parseInt(furnaceSlider.value, 10);
       furnaceValEl.textContent = furnaceLevel;
       lightLevel = furnaceToLight(furnaceLevel);
       if (userUnmuted) _setCrackleVol();
-      // 手动调节后立刻保存，作为新的衰减起点
-      _furnaceDecaySave();
     });
 
-    // ─── 熔炉自然衰减（指数衰减，24h 从 100 → ~1）────────────────────
-    // λ = ln(100) / 86400 ≈ 5.33e-5 /s
-    // f(t) = f0 · e^(−λ·t)，越低衰减越慢（指数曲线天然特性）
-    const _DECAY_λ = Math.log(100) / (24 * 3600);
-
-    function _furnaceDecaySave() {
+    // ─── 熔炉状态持久化 ────────────────────────────────────────────────
+    function _furnaceStateSave() {
       try {
-        localStorage.setItem('furnaceDecay', JSON.stringify({
-          level: furnaceLevel,
-          ts   : Date.now(),
+        localStorage.setItem('furnaceState', JSON.stringify({
+          fuelSeconds      : fuelSeconds,
+          fuelTotalSeconds : fuelTotalSeconds,
+          fuelQueue        : fuelQueue,
+          smeltProgress    : smeltProgress,
+          inputSlot        : furnaceInputSlot,
+          fuelSlot         : furnaceFuelSlot,
+          outputSlot       : furnaceOutputSlot,
+          ts               : Date.now(),
         }));
       } catch {}
     }
+    window._furnaceStateSave = _furnaceStateSave;
 
-    // 页面加载时恢复并补算离线衰减
+    // 页面加载时恢复状态并补算离线燃烧
     (() => {
       try {
-        const raw = localStorage.getItem('furnaceDecay');
+        // 兼容旧 key
+        localStorage.removeItem('furnaceDecay');
+        const raw = localStorage.getItem('furnaceState');
         if (!raw) return;
-        const { level, ts } = JSON.parse(raw);
-        const elapsed = Math.max(0, (Date.now() - ts) / 1000);
-        furnaceLevel = Math.max(0, level * Math.exp(-_DECAY_λ * elapsed));
+        const s = JSON.parse(raw);
+        const elapsed = Math.max(0, (Date.now() - s.ts) / 1000);
+
+        fuelSeconds      = Math.max(0, (s.fuelSeconds || 0) - elapsed);
+        fuelTotalSeconds = s.fuelTotalSeconds || 0;
+        fuelQueue        = s.fuelQueue  || [];
+        smeltProgress    = s.smeltProgress || 0;
+        if (s.inputSlot)  furnaceInputSlot  = s.inputSlot;
+        if (s.fuelSlot)   furnaceFuelSlot   = s.fuelSlot;
+        if (s.outputSlot) furnaceOutputSlot = s.outputSlot;
+
+        // 若离线时燃料耗尽，尝试自动点燃队列
+        if (fuelSeconds <= 0 && fuelQueue.length > 0) {
+          // 延迟到 furnace-ui.js 加载后执行
+          setTimeout(() => { if (typeof _tryAutoStartFuel === 'function') _tryAutoStartFuel(); }, 0);
+        }
+
+        furnaceLevel = fuelTotalSeconds > 0
+          ? (fuelSeconds / fuelTotalSeconds) * 100 : 0;
         lightLevel   = furnaceToLight(furnaceLevel);
         furnaceSlider.value      = Math.round(furnaceLevel);
         furnaceValEl.textContent = Math.round(furnaceLevel);
@@ -174,29 +194,39 @@
     let _decaySaveTs = Date.now();
     function updateFurnaceDecay() {
       const now = performance.now();
-      const dt  = (now - _decayLastT) / 1000;   // 秒
+      const dt  = Math.min((now - _decayLastT) / 1000, 1);  // 秒，最大 1s 防跳帧
       _decayLastT = now;
 
-      if (furnaceLevel <= 0) return;
+      // ── 燃料线性倒计时 ────────────────────────────────────────────
+      if (fuelSeconds > 0) {
+        fuelSeconds = Math.max(0, fuelSeconds - dt);
+        if (fuelSeconds === 0) {
+          if (typeof _tryAutoStartFuel === 'function') _tryAutoStartFuel();
+        }
+        furnaceLevel = fuelTotalSeconds > 0
+          ? (fuelSeconds / fuelTotalSeconds) * 100 : 0;
+      } else {
+        furnaceLevel = 0;
+      }
 
-      furnaceLevel = furnaceLevel * Math.exp(-_DECAY_λ * dt);
-      if (furnaceLevel < 0.5) furnaceLevel = 0;   // 阈值截断，确保最终归零
-      lightLevel   = furnaceToLight(furnaceLevel);
+      lightLevel = furnaceToLight(furnaceLevel);
 
-      // 更新 slider UI（整数显示，不驱动 input 事件）
+      // 更新 slider UI
       const rounded = Math.round(furnaceLevel);
       furnaceSlider.value      = rounded;
       furnaceValEl.textContent = rounded;
 
-      // 音量随衰减平滑调整
       if (userUnmuted) _setCrackleVol();
 
-      // 每 10s 持久化一次
+      // 每 10s 持久化
       const nowMs = Date.now();
       if (nowMs - _decaySaveTs >= 10000) {
         _decaySaveTs = nowMs;
-        _furnaceDecaySave();
+        _furnaceStateSave();
       }
+
+      // 驱动烧制进度
+      if (typeof tickFurnace === 'function') tickFurnace(dt);
     }
     window.updateFurnaceDecay = updateFurnaceDecay;
 

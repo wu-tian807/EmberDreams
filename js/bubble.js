@@ -112,6 +112,12 @@
         return;
       }
 
+      // ── 熔炉点击：打开 GUI ──────────────────────────────────────────
+      if (_furnaceHovered) {
+        if (typeof openFurnaceUI === 'function') openFurnaceUI();
+        return;
+      }
+
       // ── 箱子点击：上锁音效 + 字幕 ──────────────────────────────────
       if (_chestHovered) {
         triggerLockedChest();
