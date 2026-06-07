@@ -1,6 +1,8 @@
 // furnace-ui.js — Minecraft furnace GUI interaction
 
 const SMELT_DURATION = 1800;   // 30 min per item (real seconds, scaled)
+// 火力不足时进度倒退速率：整条进度（1800s）在此时间内归零（原版约为烧制速度的2倍）
+const SMELT_DECAY_SECONDS = 120; // 2 分钟从满血退回 0
 
 // 燃料热量持续时长（秒）：点燃后 furnaceLevel 从 100→0 的总时间
 // 按原版比例 wood:charcoal = 300:1600 ticks，映射到 charcoal=24h → wood≈4.5h
@@ -179,9 +181,10 @@ function renderFurnace() {
   const smelting   = furnaceLevel >= 10
     && furnaceInputSlot  && furnaceInputSlot.count  > 0
     && !(furnaceOutputSlot && furnaceOutputSlot.count >= MAX_STACK);
-  const smeltRatio = smelting ? Math.min(smeltProgress / SMELT_DURATION, 1) : 0;
+  const smeltRatio = Math.min(smeltProgress / SMELT_DURATION, 1);
   if (_arrowImg) {
     _arrowImg.style.clipPath = `inset(0 ${((1-smeltRatio)*100).toFixed(1)}% 0 0)`;
+    _arrowImg.style.opacity  = '1';
   }
 
   // 进度文字：显示烧制剩余时间 / 火力值
@@ -257,6 +260,10 @@ function _scheduleInputRefresh() {
 // undefined = 尚未初始化（首帧不触发归零，保留 localStorage 恢复的进度）
 let _tickPrevInputType = undefined;
 
+// 进度倒退锚点（fire 不足时使用）
+let _decayStartTs       = 0;   // 开始倒退时的 Date.now()
+let _decayStartProgress = 0;   // 开始倒退时的 smeltProgress 值
+
 // ── Tick（每帧由 updateFurnaceDecay 调用）────────────────────────────
 function tickFurnace() {
   // 以下两种情况都尝试点燃：
@@ -289,17 +296,30 @@ function tickFurnace() {
     && !(furnaceOutputSlot && furnaceOutputSlot.count >= MAX_STACK);
 
   if (!canSmelt) {
-    // 暂停烧制：保存当前进度，清除激活锚点
+    // 停止正向烧制，保存当前进度
     if (_smeltIsActive) {
       if (_smeltStartTs > 0) {
         smeltProgress = Math.min((Date.now() - _smeltStartTs) / 1000, SMELT_DURATION - 0.001);
       }
       _smeltIsActive = false;
       _smeltStartTs  = 0;
+      // 开始倒退计时
+      _decayStartTs       = Date.now();
+      _decayStartProgress = smeltProgress;
+    }
+    // 进度倒退（火力不足期间持续执行）
+    if (smeltProgress > 0 && _decayStartTs > 0) {
+      const decayRate = SMELT_DURATION / SMELT_DECAY_SECONDS; // 每秒倒退的进度值
+      const elapsed   = (Date.now() - _decayStartTs) / 1000;
+      smeltProgress   = Math.max(0, _decayStartProgress - decayRate * elapsed);
     }
     if (furnaceUIOpen) renderFurnace();
     return;
   }
+
+  // canSmelt 为真：重置倒退锚点
+  _decayStartTs       = 0;
+  _decayStartProgress = 0;
 
   // ── canSmelt 为真：用 wall-clock 锚点驱动进度 ────────────────────────
   if (!_smeltIsActive) {

@@ -18,11 +18,26 @@
     let   _crackleRunning = false;
     let   _crackleTimer   = null;
 
-    // 音量映射：fire>=50 全音量，<50 幂函数衰减
+    // WE 用户可调基础音量（0~1），由 project.json cracklevol 参数控制，默认 1.0
+    let _crackleMasterVol = 1.0;
+
+    // 监听 Wallpaper Engine 用户属性变化
+    window.wallpaperPropertyListener = window.wallpaperPropertyListener || {};
+    const _prevApply = window.wallpaperPropertyListener.applyUserProperties;
+    window.wallpaperPropertyListener.applyUserProperties = function(props) {
+      if (_prevApply) _prevApply(props);
+      if (props.cracklevol !== undefined) {
+        _crackleMasterVol = props.cracklevol.value / 100;
+        if (typeof _setCrackleVol === 'function') _setCrackleVol();
+      }
+    };
+
+    // 音量映射：fire>=50 全音量，<50 幂函数衰减，再乘以用户基础音量
     function _crackleVolume() {
-      if (furnaceLevel >= 50) return 1.0;
-      if (furnaceLevel <= 0)  return 0;
-      return Math.pow(furnaceLevel / 50, 1.5);
+      const fireVol = furnaceLevel >= 50 ? 1.0
+                    : furnaceLevel <= 0  ? 0
+                    : Math.pow(furnaceLevel / 50, 1.5);
+      return fireVol * _crackleMasterVol;
     }
 
     // 用 XHR 加载单个 buffer（file:// 协议兼容，fetch 在本地文件会被 CORS 阻止）

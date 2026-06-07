@@ -84,6 +84,46 @@
     }
     window.showFireBlindBubble = showFireBlindBubble;
 
+    // ─── 发抖彩蛋台词（冷感）────────────────────────────────────────
+    const SHIVER_TEXTS = [
+      'so cold...',
+      'cold...',
+      '...brr...',
+      "...it's cold...",
+      '...s-so cold...',
+      '...cold...',
+    ];
+
+    function showShiverBubble() {
+      const r = getVideoRect();
+      if (!r) return;
+
+      const size = r.width * 0.13;
+      const cx   = r.left + r.width  * HEAD_CX;
+      const cy   = r.top  + r.height * HEAD_CY;
+
+      bubbleEl.style.width  = size + 'px';
+      bubbleEl.style.height = size + 'px';
+      bubbleEl.style.left   = (cx + size * 0.3) + 'px';
+      bubbleEl.style.top    = (cy - size * 1.4) + 'px';
+
+      bubbleText.style.fontSize = (size * 0.11) + 'px';
+      bubbleText.textContent    =
+        SHIVER_TEXTS[Math.floor(Math.random() * SHIVER_TEXTS.length)];
+      bubbleText.classList.remove('fire-blind');
+
+      bubbleEl.classList.remove('hide', 'show');
+      void bubbleEl.offsetHeight;
+      bubbleEl.classList.add('show');
+
+      clearTimeout(bubbleTimer);
+      bubbleTimer = setTimeout(() => {
+        bubbleEl.classList.replace('show', 'hide');
+        bubbleTimer = setTimeout(() => bubbleEl.classList.remove('hide'), 700);
+      }, 2500);
+    }
+    window.showShiverBubble = showShiverBubble;
+
     // ─── 头部点击触发 turn（25% 概率）+ 气泡（每次）────────────────
     let firstClick = true;
     document.addEventListener('click', (e) => {
@@ -134,7 +174,7 @@
         return;
       }
 
-      if (state === 'turning') return;
+      if (state === 'turning' || state === 'shivering') return;
 
       const r = getVideoRect();
       if (!r) return;
@@ -262,6 +302,7 @@
     turnBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       if (!userUnmuted) unmute();
+      if (state === 'shivering') return;
       turn();
     });
 

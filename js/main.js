@@ -87,6 +87,7 @@
       drawDarkness(mouseX, mouseY, lightLevel);
       if (typeof _drawFurnaceEditor === 'function') _drawFurnaceEditor();
       if (typeof _drawChestEditor   === 'function') _drawChestEditor();
+      if (typeof _drawFlowerEditor  === 'function') _drawFlowerEditor();
       drawTorchGlow(mouseX, mouseY);
       if (typeof updateTitleLight === 'function') updateTitleLight();
 
@@ -530,6 +531,35 @@
         }
       }
 
+      // ── 小花：hover 径向光晕（不露多边形轮廓，纯发光感）────────────────
+      if (_flowerHovered && FLOWER_CORNERS) {
+        const fr = getVideoRect();
+        if (fr) {
+          const toScr = ([vx, vy]) => [fr.left + vx * fr.width, fr.top + vy * fr.height];
+          const scr = FLOWER_CORNERS.map(toScr);
+
+          // 多边形中心
+          const cx = scr.reduce((s, p) => s + p[0], 0) / scr.length;
+          const cy = scr.reduce((s, p) => s + p[1], 0) / scr.length;
+          // 光晕半径 = 角点到中心最大距离 × 放大系数，边缘完全消散
+          const maxR  = Math.max(...scr.map(([px, py]) => Math.hypot(px - cx, py - cy)));
+          const glowR = maxR * 3.2;
+
+          ctx.save();
+          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
+          grad.addColorStop(0,    'rgba(200, 255, 200, 0.40)');
+          grad.addColorStop(0.30, 'rgba(140, 255, 140, 0.22)');
+          grad.addColorStop(0.60, 'rgba(80,  220, 100, 0.10)');
+          grad.addColorStop(1,    'rgba(60,  200, 80,  0)');
+
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
       // ── 烈焰彩蛋：fuel 加满瞬间到 100 的上升沿 + sleepLeft → 弹台词 + 翻身 ──
       const _fireHigh = furnaceLevel >= 99;
       if (_fireHigh && !animateFlame._fireBlindPrev
@@ -547,8 +577,62 @@
       if (!_fireHigh) animateFlame._fireBlindPrev = false;
       else            animateFlame._fireBlindPrev = true;
 
+      // ── 冷彩蛋：炉火 < 15 时随机 30~90s 触发发抖动画 + 台词 ──────────
+      const _isCold = furnaceLevel < 15;
+      // 任何非 sleep 动画正在播放时都不允许触发/保持 busy
+      const _otherAnimBusy = state === 'turning' || state === 'shivering'
+                          || animateFlame._fireBlindBusy;
+      if (_isCold && !animateFlame._shiverBusy && !_otherAnimBusy) {
+        if (!animateFlame._shiverNextTick) {
+          // 首次进入冷状态，随机设置下次触发时间
+          animateFlame._shiverNextTick =
+            Date.now() + (30 + Math.random() * 60) * 1000;
+        } else if (Date.now() >= animateFlame._shiverNextTick) {
+          // 仅在纯睡眠状态触发，再次确认没有其他动画抢占
+          if ((state === 'sleepRight' || state === 'sleepLeft') && !_otherAnimBusy) {
+            animateFlame._shiverBusy = true;
+            animateFlame._shiverNextTick = 0;
+            if (typeof showShiverBubble === 'function') showShiverBubble();
+            if (typeof playShiver === 'function') {
+              playShiver(() => {
+                animateFlame._shiverBusy = false;
+                // 触发后等 20~60s 才能再次触发（需炉火仍低）
+                animateFlame._shiverNextTick =
+                  Date.now() + (20 + Math.random() * 40) * 1000;
+              });
+            } else {
+              animateFlame._shiverBusy = false;
+            }
+          } else {
+            // 触发时机到了但 state 不对，推迟 10s 再试
+            animateFlame._shiverNextTick = Date.now() + 10000;
+          }
+        }
+      }
+      // 炉火恢复 或 其他动画占用时，重置计时器（冷静后从头等待）
+      if (!_isCold) animateFlame._shiverNextTick = 0;
+
       } catch(e) { console.error('flame:', e); }  // 单帧错误不中断循环
     }
-    animateFlame._fireBlindPrev = false;
-    animateFlame._fireBlindBusy = false;
+    animateFlame._fireBlindPrev  = false;
+    animateFlame._fireBlindBusy  = false;
+    animateFlame._shiverBusy     = false;
+    animateFlame._shiverNextTick = 0;
     animateFlame();
+
+    // ── 调试面板开关：按 ` (反引号) 切换显示/隐藏 ────────────────────────
+    (function() {
+      const panel = document.getElementById('debug-panel');
+      const hint  = document.getElementById('corner-hint');
+      if (!panel) return;
+      function syncHint() {
+        if (hint) hint.style.display = panel.classList.contains('hidden') ? '' : 'none';
+      }
+      syncHint(); // 初始同步
+      document.addEventListener('keydown', (e) => {
+        if (e.key === '`' || e.key === '~') {
+          panel.classList.toggle('hidden');
+          syncHint();
+        }
+      });
+    })();

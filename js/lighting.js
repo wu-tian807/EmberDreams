@@ -135,9 +135,13 @@
     // slider 调试用：直接设置 furnaceLevel，同步重置锚点
     furnaceSlider.addEventListener('input', () => {
       furnaceLevel = parseInt(furnaceSlider.value, 10);
-      // 重置锚点，保持当前衰减率继续从新值衰减
       _furnaceLevelAnchorValue = furnaceLevel;
       _furnaceLevelAnchorTs    = Date.now();
+      // 无燃料时（decayRate=0）手动拖高火力 → 套用木头衰减率，使其正常衰减
+      if (furnaceLevel > 0 && furnaceLevelDecayRate === 0) {
+        furnaceLevelDecayRate = 100 / 16200; // 木头 4.5h
+      }
+      if (furnaceLevel === 0) furnaceLevelDecayRate = 0;
       furnaceValEl.textContent = furnaceLevel;
       lightLevel = furnaceToLight(furnaceLevel);
       if (userUnmuted) _setCrackleVol();
@@ -169,10 +173,24 @@
       // ── 恢复 smelt 锚点 ───────────────────────────────────────────────
       _smeltStartTs  = s.smeltStartTs  || 0;
       _smeltIsActive = s.smeltIsActive || false;
-      // smeltProgress 初值（tickFurnace 首帧会用锚点重新计算）
-      smeltProgress  = (_smeltIsActive && _smeltStartTs > 0)
-        ? Math.max(0, (Date.now() - _smeltStartTs) / 1000) % 1800  // 宽松上限，tickFurnace 负责完整处理
-        : 0;
+
+      if (_smeltIsActive && _smeltStartTs > 0) {
+        // 正在烧制：从锚点推算（含离线时间），tickFurnace 首帧完整处理
+        smeltProgress = Math.max(0, (Date.now() - _smeltStartTs) / 1000) % 1800;
+      } else if (s.decayStartTs > 0) {
+        // 进度正在倒退中：应用离线期间的倒退量
+        const SMELT_DECAY_SECONDS = 120; // 与 furnace-ui.js 保持一致
+        const SMELT_DURATION_VAL  = 1800;
+        const decayRate  = SMELT_DURATION_VAL / SMELT_DECAY_SECONDS;
+        const offlineElapsed = (Date.now() - s.decayStartTs) / 1000;
+        smeltProgress    = Math.max(0, (s.decayStartProgress || 0) - decayRate * offlineElapsed);
+        // 恢复倒退锚点（让 tickFurnace 继续从当前位置倒退）
+        _decayStartTs       = Date.now();
+        _decayStartProgress = smeltProgress;
+      } else {
+        // 暂停状态：直接用保存的进度值
+        smeltProgress = s.smeltProgress || 0;
+      }
 
       if (s.inputSlot)  furnaceInputSlot  = s.inputSlot;
       if (s.fuelSlot)   furnaceFuelSlot   = s.fuelSlot;
@@ -341,6 +359,19 @@
         return;
       }
 
+      // 拖动小花角点（编辑器模式）
+      if (DEBUG_FLOWER_DRAG && _flowerDrag.idx >= 0 && FLOWER_CORNERS) {
+        const r = getVideoRect();
+        if (r) {
+          FLOWER_CORNERS[_flowerDrag.idx] = [
+            Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
+            Math.max(0, Math.min(1, (e.clientY - r.top)  / r.height)),
+          ];
+        }
+        document.body.style.cursor = 'grabbing';
+        return;
+      }
+
       // title 优先：先过矩形，再做像素 alpha 采样，精准排除透明区域
       const _titleEl = document.getElementById('wb-title');
       const overTitle = !_wbExpanded && !_wbClosing && !!_titleEl
@@ -351,14 +382,22 @@
         _wbHovered      = false;
         _furnaceHovered = false;
         _chestHovered   = false;
+        _flowerHovered  = false;
       } else {
         _titleHovered   = false;
         _wbHovered      = isInWorkbench(mouseX, mouseY);
         _furnaceHovered = !_wbHovered && _isInFurnace(mouseX, mouseY);
         _chestHovered   = !_wbHovered && !_furnaceHovered && _isInChest(mouseX, mouseY);
+        _flowerHovered  = !_wbHovered && !_furnaceHovered && !_chestHovered
+                          && _isInFlower(mouseX, mouseY);
       }
+
+      // 更新 tooltip
+      _updateFlowerTooltip(e.clientX, e.clientY, _flowerHovered);
+
       document.body.style.cursor =
-        (_wbHovered || overTitle || _furnaceHovered || _chestHovered) ? 'pointer' : 'crosshair';
+        (_wbHovered || overTitle || _furnaceHovered || _chestHovered || _flowerHovered)
+          ? 'pointer' : 'crosshair';
     });
 
     window.addEventListener('mousedown', (e) => {
@@ -392,6 +431,20 @@
         }
       }
 
+      // 小花角点编辑器
+      if (DEBUG_FLOWER_DRAG && FLOWER_CORNERS) {
+        for (let i = 0; i < FLOWER_CORNERS.length; i++) {
+          const [vx, vy] = FLOWER_CORNERS[i];
+          const sx = r.left + vx * r.width;
+          const sy = r.top  + vy * r.height;
+          if (Math.hypot(e.clientX - sx, e.clientY - sy) < 14) {
+            _flowerDrag = { idx: i };
+            e.preventDefault();
+            return;
+          }
+        }
+      }
+
       if (!DEBUG_WB_DRAG || !_wbFreeCorners) return;
       for (let i = 0; i < 4; i++) {
         const [vx, vy] = _wbFreeCorners[i];
@@ -406,17 +459,21 @@
     });
 
     window.addEventListener('mouseup', () => {
-      _wbDragIdx = -1;
+      _wbDragIdx   = -1;
       _furnaceDrag = { idx: -1 };
       _chestDrag   = { idx: -1 };
+      _flowerDrag  = { idx: -1 };
     });
 
     window.addEventListener('mouseleave', () => {
       mouseX = -999; mouseY = -999;
-      _wbHovered = false;
-      _wbDragIdx = -1;
+      _wbHovered     = false;
+      _flowerHovered = false;
+      _wbDragIdx   = -1;
       _furnaceDrag = { idx: -1 };
       _chestDrag   = { idx: -1 };
+      _flowerDrag  = { idx: -1 };
+      _updateFlowerTooltip(-999, -999, false);
       document.body.style.cursor = 'crosshair';
     });
 
@@ -499,6 +556,113 @@
       hud.style.display = '';
     }
     window._drawChestEditor = _drawChestEditor;
+
+    // ─── 小花多边形命中检测 ──────────────────────────────────────────────────
+    function _isInFlower(mx, my) {
+      if (!FLOWER_CORNERS || !FLOWER_FACES) return false;
+      const r = getVideoRect(); if (!r) return false;
+      const toScr = ([vx, vy]) => [r.left + vx * r.width, r.top + vy * r.height];
+      for (const face of FLOWER_FACES) {
+        if (face.idx.length < 3) continue;
+        const pts = face.idx.map(i => toScr(FLOWER_CORNERS[i]));
+        if (typeof _inConvexPoly === 'function' && _inConvexPoly(pts, mx, my)) return true;
+      }
+      return false;
+    }
+
+    // ─── 小花 debug 编辑器：每帧绘制 ─────────────────────────────────────────
+    function _drawFlowerEditor() {
+      if (!FLOWER_CORNERS || !FLOWER_FACES) return;
+      const r = getVideoRect(); if (!r) return;
+      const toScr = ([vx, vy]) => [r.left + vx * r.width, r.top + vy * r.height];
+      const scr = FLOWER_CORNERS.map(toScr);
+
+      if (!DEBUG_FLOWER_DRAG) {
+        const hud = document.getElementById('flower-poly-hud');
+        if (hud) hud.style.display = 'none';
+        return;
+      }
+
+      dCtx.save();
+      for (const face of FLOWER_FACES) {
+        const pts = face.idx.map(i => scr[i]);
+        dCtx.beginPath();
+        dCtx.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 1; i < pts.length; i++) dCtx.lineTo(pts[i][0], pts[i][1]);
+        dCtx.closePath();
+        dCtx.fillStyle   = face.fill;
+        dCtx.strokeStyle = face.stroke;
+        dCtx.lineWidth   = 2;
+        dCtx.fill();
+        dCtx.stroke();
+      }
+      scr.forEach(([sx, sy], i) => {
+        const hot = _flowerDrag.idx === i;
+        dCtx.beginPath();
+        dCtx.arc(sx, sy, hot ? 10 : 7, 0, Math.PI * 2);
+        dCtx.fillStyle   = hot ? 'rgba(255,255,160,0.95)' : 'rgba(200,255,200,0.85)';
+        dCtx.strokeStyle = '#333'; dCtx.lineWidth = 1.5;
+        dCtx.fill(); dCtx.stroke();
+        dCtx.fillStyle = '#111'; dCtx.font = 'bold 9px monospace';
+        dCtx.textAlign = 'center'; dCtx.textBaseline = 'middle';
+        dCtx.fillText(String(i), sx, sy);
+      });
+      dCtx.restore();
+
+      let hud = document.getElementById('flower-poly-hud');
+      if (!hud) {
+        hud = document.createElement('pre');
+        hud.id = 'flower-poly-hud';
+        hud.style.cssText =
+          'position:fixed;right:8px;top:350px;background:rgba(0,0,0,0.75);color:#8f8;' +
+          'font:11px monospace;padding:8px 10px;border-radius:5px;z-index:99999;pointer-events:none;line-height:1.5;';
+        document.body.appendChild(hud);
+      }
+      const f = v => v.toFixed(4);
+      hud.textContent =
+        'FLOWER_CORNERS = [\n' +
+        FLOWER_CORNERS.map((p, i) => `  [${f(p[0])}, ${f(p[1])}],  // ${i}`).join('\n') +
+        '\n];';
+      hud.style.display = '';
+    }
+    window._drawFlowerEditor = _drawFlowerEditor;
+
+    // ─── 小花 tooltip 更新（每次 mousemove 调用）────────────────────────────
+    (function _initFlowerTooltip() {
+      const tip = document.getElementById('flower-tooltip');
+      if (!tip) return;
+
+      // 初始化 tooltip 文本（从全局 FLOWER_INFO 读取）
+      const info = typeof FLOWER_INFO !== 'undefined' ? FLOWER_INFO : {};
+      tip.querySelector('.ftip-name').textContent = info.name || '';
+      tip.querySelector('.ftip-type').textContent = info.type || '';
+      tip.querySelector('.ftip-id').textContent   = info.id   || '';
+    })();
+
+    window._updateFlowerTooltip = function(mx, my, visible) {
+      const tip = document.getElementById('flower-tooltip');
+      if (!tip) return;
+
+      if (!visible) {
+        tip.classList.remove('ftip-show');
+        return;
+      }
+
+      // 跟随鼠标，偏移到右上方，防止出屏
+      const tw = tip.offsetWidth  || 200;
+      const th = tip.offsetHeight || 80;
+      const margin = 8;
+      let left = mx + 14;
+      let top  = my - th - 8;
+      // 右侧超出
+      if (left + tw > window.innerWidth  - margin) left = mx - tw - 14;
+      // 上方超出
+      if (top < margin) top = my + 20;
+
+      tip.style.left = left + 'px';
+      tip.style.top  = top  + 'px';
+      tip.classList.add('ftip-show');
+    };
 
     // ─── 熔炉多边形命中检测（顶面 + 正面）────────────────────────────────────
     function _isInFurnace(mx, my) {

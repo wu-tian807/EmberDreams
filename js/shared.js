@@ -177,6 +177,28 @@ var furnaceOutputSlot = null;
 // 鼠标持有的物品（拖拽中）
 var furnaceHeldItem = null;
 
+// ── 小花（花盆）角点 + tooltip 数据 ─────────────────────────────────────
+// 视频相对坐标 [vx, vy]（0~1），调好后 DEBUG_FLOWER_DRAG = false
+var DEBUG_FLOWER_DRAG = false;
+var FLOWER_CORNERS = [
+  [0.5747, 0.0703],  // 0 左上
+  [0.6124, 0.0659],  // 1 右上
+  [0.6142, 0.1251],  // 2 右下
+  [0.5710, 0.1284],  // 3 左下
+];
+var FLOWER_FACES = [
+  { idx: [0,1,2,3], fill: 'rgba(80,200,80,0.10)', stroke: 'rgba(80,200,80,0.75)', name: '花' },
+];
+var _flowerDrag    = { idx: -1 };
+var _flowerHovered = false;
+
+// 小花 tooltip 展示数据（可根据视频中实际种植的花修改）
+var FLOWER_INFO = {
+  name: '蒲公英',
+  type: '自然方块',
+  id:   'minecraft:dandelion',
+};
+
 // ── 玩家背包 ─────────────────────────────────────────────────────────────
 // 由 save.js loadInventory() 在页面加载时恢复
 var inventoryData = new Array(27).fill(null);  // 背包（3×9）

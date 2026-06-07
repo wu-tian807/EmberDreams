@@ -15,6 +15,8 @@
   <canvas id="darkness-canvas"></canvas>
   <canvas id="flame-canvas"></canvas>
 
+  <!-- 调试面板（按 ` 切换显示/隐藏，默认隐藏） -->
+  <div id="debug-panel" class="hidden">
   <!-- 火力调节滑条 -->
   <div id="light-slider-ui">
     <div class="slider-row">
@@ -45,9 +47,18 @@
     </div>
   </div>
 
-  <div id="unmute-tip">CLICK TO UNMUTE</div>
-  <div id="hud"></div>
   <button id="turn-btn">turn()</button>
+  <button id="shiver-btn" onclick="if(typeof playShiver==='function'){showShiverBubble&&showShiverBubble();playShiver();}">shiver()</button>
+  <div id="hud"></div>
+  </div><!-- /#debug-panel -->
+
+  <div id="unmute-tip">CLICK TO UNMUTE</div>
+
+  <!-- 右下角署名 + debug 提示 -->
+  <div id="corner-hint">
+    <span id="corner-credit">Made With WuTian</span>
+    <span id="corner-debug-tip">` 开启调试预览</span>
+  </div>
 
   <!-- 熔炉 GUI 弹窗 -->
   <div id="furnace-gui" class="hidden">
@@ -69,6 +80,14 @@
   </div>
   <!-- 鼠标持有的物品 -->
   <div id="furnace-held"></div>
+
+  <!-- 小花 Minecraft 风格 tooltip -->
+  <div id="flower-tooltip" role="tooltip">
+    <div class="ftip-name"></div>
+    <div class="ftip-sep"></div>
+    <div class="ftip-type"></div>
+    <div class="ftip-id"></div>
+  </div>
 
   <!-- load order matters: shared state first, then modules -->
   <script src="js/shared.js"></script>

@@ -1,0 +1,17 @@
+{
+  "file": "index.html",
+  "preview": "",
+  "title": "GirlSleepinMC",
+  "type": "web",
+  "properties": {
+    "cracklevol": {
+      "order": 1,
+      "title": "Furnace Crackle Volume",
+      "type": "slider",
+      "min": 0,
+      "max": 100,
+      "value": 100,
+      "precision": 1
+    }
+  }
+}

@@ -6,6 +6,8 @@
       turnLeft      : 'turnleft_s.webm',
       turnRight     : 'turnright_s.webm',
       turnRightQuick: 'turn_right_quick.webm',
+      shiverRight   : 'shiver_right_resize.webm',
+      shiverLeft    : 'shiver_left_new.webm',
     };
 
     const CROSSFADE_MS  = 200;     // 过场时长
@@ -221,6 +223,60 @@
       back.vid.play().catch(console.error);
     }
     window.turnQuick = turnQuick;
+
+    // ─── 发抖彩蛋（冷彩蛋）：立即切入发抖视频，播完后回到原睡眠 ─────────
+    function playShiver(onDone) {
+      if (state !== 'sleepRight' && state !== 'sleepLeft') {
+        if (onDone) onDone();
+        return;
+      }
+
+      const isRight   = state === 'sleepRight';
+      // shiver_right.webm = 面朝右（源自 rightSleep 首帧）→ sleepRight 时用
+      // shiver_left.webm  = 面朝左（源自 leftSleep 首帧） → ​sleepLeft 时用
+      const shiverSrc = isRight ? VIDEOS.shiverRight : VIDEOS.shiverLeft;
+      const sleepSrc  = isRight ? VIDEOS.rightSleep  : VIDEOS.leftSleep;
+      const prevState = state;
+
+      state = 'shivering';
+      updateHud();
+
+      // 立即中断当前 sleep loop，切入发抖视频
+      front.vid.loop  = false;
+      front.vid.pause();
+
+      back.vid.pause();
+      back.vid.muted  = true;
+      back.vid.loop   = false;   // 发抖视频只播一遍（~5s）
+      back.vid.src    = shiverSrc;
+      back.vid.load();
+
+      back.vid.addEventListener('playing', function onShiverReady() {
+        flipLayers(() => {
+          // 发抖视频切入后，后台开始缓冲睡眠循环
+          back.vid.muted = true;
+          back.vid.loop  = true;
+          back.vid.src   = sleepSrc;
+          back.vid.load();
+
+          front.vid.addEventListener('ended', function onShiverEnd() {
+            back.vid.addEventListener('playing', function onSleepReady() {
+              flipLayers(() => {
+                state = prevState;
+                updateHud();
+                if (onDone) onDone();
+              });
+            }, { once: true });
+            back.vid.currentTime = 0;
+            back.vid.play().catch(console.error);
+          }, { once: true });
+        });
+      }, { once: true });
+
+      back.vid.currentTime = 0;
+      back.vid.play().catch(console.error);
+    }
+    window.playShiver = playShiver;
 
     // ─── 解除静音（只作用于前台） ────────────────────────────────────
     function unmute() {

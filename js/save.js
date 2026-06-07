@@ -24,7 +24,8 @@ function _saveCleanLegacy() {
  * 保存当前熔炉状态到 localStorage
  * 依赖全局变量：_furnaceLevelAnchorValue, _furnaceLevelAnchorTs,
  *              furnaceLevelDecayRate, fuelQueue,
- *              _smeltStartTs, _smeltIsActive,
+ *              _smeltStartTs, _smeltIsActive, smeltProgress,
+ *              _decayStartTs, _decayStartProgress,
  *              furnaceInputSlot, furnaceFuelSlot, furnaceOutputSlot
  *
  * 注意：存的是"锚点时间戳"而非计算后的当前值，
@@ -33,14 +34,19 @@ function _saveCleanLegacy() {
 function saveFurnace() {
   try {
     localStorage.setItem(SAVE_KEY_FURNACE, JSON.stringify({
-      // furnaceLevel 锚点（恢复时由 anchorValue - decayRate*(now-anchorTs)/1000 算出）
+      // furnaceLevel 锚点
       furnaceLevelAnchorValue : _furnaceLevelAnchorValue,
       furnaceLevelAnchorTs    : _furnaceLevelAnchorTs,
       furnaceLevelDecayRate   : furnaceLevelDecayRate,
       fuelQueue               : fuelQueue,
-      // smelt 锚点（恢复时 smeltProgress = (now - smeltStartTs)/1000 % SMELT_DURATION）
+      // smelt 正向烧制锚点
       smeltStartTs            : _smeltStartTs,
       smeltIsActive           : _smeltIsActive,
+      // 直接保存当前进度（用于非活跃态恢复）
+      smeltProgress           : smeltProgress,
+      // 进度倒退锚点（火力不足时）
+      decayStartTs            : _decayStartTs,
+      decayStartProgress      : _decayStartProgress,
       inputSlot               : furnaceInputSlot,
       fuelSlot                : furnaceFuelSlot,
       outputSlot              : furnaceOutputSlot,

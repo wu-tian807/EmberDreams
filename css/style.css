@@ -33,14 +33,44 @@
       pointer-events: none; transition: opacity 0.6s; z-index: 10;
     }
     #unmute-tip.hidden { opacity: 0; }
-    #turn-btn {
-      position: fixed; bottom: 18px; left: 18px;
+    #debug-panel {
+      display: contents; /* 透明容器，不影响子元素布局 */
+    }
+    #debug-panel.hidden {
+      display: none;
+    }
+
+    #corner-hint {
+      position: fixed;
+      bottom: 14px; right: 16px;
+      display: flex; flex-direction: column; align-items: flex-end;
+      gap: 3px;
+      pointer-events: none;
+      z-index: 5;
+    }
+    #corner-credit {
+      font-family: 'MinecraftDefault', monospace;
+      font-size: 11px;
+      color: rgba(255,255,255,0.25);
+      letter-spacing: 0.04em;
+    }
+    #corner-debug-tip {
+      font-family: 'MinecraftDefault', monospace;
+      font-size: 10px;
+      color: rgba(255,255,255,0.18);
+      letter-spacing: 0.03em;
+    }
+    #turn-btn, #shiver-btn {
+      position: fixed;
       background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
       color: rgba(255,255,255,0.4); font-family: inherit; font-size: 11px;
       padding: 5px 12px; cursor: pointer; border-radius: 4px;
       transition: background .2s, color .2s; letter-spacing: 0.05em; z-index: 10;
     }
-    #turn-btn:hover    { background: rgba(255,255,255,0.14); color: rgba(255,255,255,0.8); }
+    #turn-btn   { bottom: 18px; left: 18px; }
+    #shiver-btn { bottom: 18px; left: 88px; color: rgba(160,220,255,0.5); border-color: rgba(160,220,255,0.2); }
+    #turn-btn:hover,   #turn-btn:not(:disabled):hover   { background: rgba(255,255,255,0.14); color: rgba(255,255,255,0.8); }
+    #shiver-btn:hover  { background: rgba(160,220,255,0.12); color: rgba(160,220,255,0.9); }
     #turn-btn:disabled { opacity: 0.3; cursor: default; }
 
     /* ── 暗/亮遮罩 canvas ── */
@@ -734,4 +764,80 @@
       color: #fff;
       text-shadow: 1px 1px 0 #3f3f3f;
       line-height: 1;
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       小花 Minecraft 风格 Tooltip
+       视觉效果参考原版 MC 物品 tooltip：深紫黑背景 + 双层紫色边框
+    ══════════════════════════════════════════════════════════════════════ */
+    #flower-tooltip {
+      position: fixed;
+      pointer-events: none;
+      z-index: 15000;
+
+      /* 双层边框：内层亮紫（border） + 外层暗紫（box-shadow 扩散 0 模糊） */
+      background: #100010;
+      border: 1px solid #320A64;
+      box-shadow:
+        0 0 0 1px #14004A,          /* 外层暗边 */
+        4px 6px 16px rgba(0,0,0,0.88);
+
+      padding: 7px 11px 9px;
+      white-space: nowrap;
+      font-family: 'MinecraftDefault', monospace;
+      image-rendering: pixelated;
+
+      /* 淡入淡出 */
+      opacity: 0;
+      transition: opacity 0.12s ease;
+      transform: translate(14px, -8px);  /* 偏移到鼠标右上方 */
+    }
+    #flower-tooltip.ftip-show {
+      opacity: 1;
+    }
+
+    /* 物品名称 */
+    .ftip-name {
+      color: #FFFFFF;
+      font-family: 'MinecraftDefault', monospace;
+      font-weight: 700;
+      font-size: 15px;
+      line-height: 1.4;
+      text-shadow: 2px 2px 0 rgba(0,0,0,0.75);
+      margin-bottom: 3px;
+    }
+
+    /* 名称下的分隔线（颜色由亮到暗渐变） */
+    .ftip-sep {
+      height: 1px;
+      margin: 4px -11px 5px;
+      /* 向两侧淡出，中间亮紫 */
+      background: linear-gradient(
+        to right,
+        transparent 0%,
+        #5000A0 12%,
+        #5000A0 88%,
+        transparent 100%
+      );
+      opacity: 0.7;
+    }
+
+    /* 物品类型（自然方块 / 工具 等） */
+    .ftip-type {
+      color: #55FFFF;
+      font-family: 'MinecraftDefault', monospace;
+      font-weight: 400;
+      font-size: 11px;
+      line-height: 1.7;
+      text-shadow: 2px 2px 0 rgba(0,0,0,0.75);
+    }
+
+    /* 命名空间 ID */
+    .ftip-id {
+      color: #9966CC;
+      font-family: 'MinecraftDefault', monospace;
+      font-weight: 400;
+      font-size: 11px;
+      line-height: 1.5;
+      text-shadow: 2px 2px 0 rgba(0,0,0,0.75);
     }
