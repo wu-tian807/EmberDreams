@@ -6,18 +6,18 @@
   "properties": {
     "autounmute": {
       "order": 0,
-      "title": "Auto Unmute (Wallpaper Engine)",
+      "text": "启动时自动播放音频",
       "type": "bool",
       "value": true
     },
     "cracklevol": {
       "order": 1,
-      "title": "Furnace Crackle Volume",
+      "text": "熔炉音量",
       "type": "slider",
       "min": 0,
       "max": 100,
       "value": 100,
-      "precision": 1
+      "step": 1
     }
   }
 }
