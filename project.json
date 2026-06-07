@@ -5,14 +5,20 @@
   "type": "web",
   "general": {
     "properties": {
-      "autounmute": {
+      "schemecolor": {
         "order": 0,
+        "text": "ui_browse_properties_scheme_color",
+        "type": "color",
+        "value": "0.94 0.55 0.12"
+      },
+      "autounmute": {
+        "order": 1,
         "text": "启动时自动播放音频",
         "type": "bool",
         "value": true
       },
       "cracklevol": {
-        "order": 1,
+        "order": 2,
         "text": "熔炉音量",
         "type": "slider",
         "min": 0,
