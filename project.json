@@ -3,21 +3,23 @@
   "preview": "preview.jpg",
   "title": "EmberDreams",
   "type": "web",
-  "properties": {
-    "autounmute": {
-      "order": 0,
-      "text": "启动时自动播放音频",
-      "type": "bool",
-      "value": true
-    },
-    "cracklevol": {
-      "order": 1,
-      "text": "熔炉音量",
-      "type": "slider",
-      "min": 0,
-      "max": 100,
-      "value": 100,
-      "step": 1
+  "general": {
+    "properties": {
+      "autounmute": {
+        "order": 0,
+        "text": "启动时自动播放音频",
+        "type": "bool",
+        "value": true
+      },
+      "cracklevol": {
+        "order": 1,
+        "text": "熔炉音量",
+        "type": "slider",
+        "min": 0,
+        "max": 100,
+        "value": 100,
+        "step": 1
+      }
     }
   }
 }
